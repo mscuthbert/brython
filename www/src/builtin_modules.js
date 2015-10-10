@@ -1,6 +1,6 @@
 ;(function($B) {
     var modules = {}
-    modules['_browser'] = {
+    modules['browser'] = {
         $package: true,
         $is_package: true,
         __package__:'browser',
@@ -17,6 +17,40 @@
         prompt: function(message, default_value){
             return $B.JSObject(window.prompt(message, default_value||''))
         },
+        reload: function(){
+            // Javascripts in the page
+            var scripts = document.getElementsByTagName('script'),
+                js_scripts = []
+            for(var i=0;i<scripts.length;i++){
+                if(scripts[i].type===undefined || 
+                    scripts[i].type=='text/javascript'){
+                    js_scripts.push(scripts[i])
+                    if(scripts[i].src){
+                        var new_script = document.createElement('SCRIPT')
+                        console.log(scripts[i].src)
+                        //new_script.src = scripts[i].src
+                        //scripts[i].parentElement.appendChild(new_script)
+                        //scripts[i].parentElement.removeChild(scripts[i])
+                    }
+                }
+            }
+            console.log(js_scripts)
+            // Python scripts in current page
+            for(var i=0;i<$B.scripts.length;i++){
+                var name = $B.scripts[i]
+                console.log('script:', name)
+                //console.log($B.$py_src[name])
+                //console.log($B.js[name])
+            }
+            // Check if imported scripts have been modified
+            for(var mod in $B.imported){
+                if($B.imported[mod].$last_modified){
+                    console.log('check', mod, $B.imported[mod].__file__, $B.imported[mod].$last_modified)
+                }else{
+                    console.log('no date for mod', mod)
+                }
+            }
+        },
         win: $B.win,
         window: $B.win,
         URLParameter:function(name) {
@@ -27,10 +61,10 @@
            return $B.builtins.str(results);
         }
     }
-    modules['_browser'].__path__ = modules['_browser'].__file__
+    modules['browser'].__path__ = modules['browser'].__file__
 
     // creation of an HTML element
-    modules['_browser.html'] = (function($B){
+    modules['browser.html'] = (function($B){
     
         var _b_ = $B.builtins
         var $TagSumDict = $B.$TagSum.$dict
@@ -42,7 +76,7 @@
                 }
         
             dict.__init__ = function(){
-                var $ns=$B.$MakeArgs1('pow',1,{self:null},['self'],arguments,
+                var $ns=$B.args('pow',1,{self:null},['self'],arguments,
                     {},'args','kw')
                 var self = $ns['self']
                 var args = $ns['args']
@@ -245,6 +279,7 @@
     }
 
     for(var attr in modules){load(attr, modules[attr])}
+    modules['browser'].html = modules['browser.html']
           
 })(__BRYTHON__)
 

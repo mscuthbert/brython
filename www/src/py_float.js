@@ -122,12 +122,93 @@ $FloatDict.__getitem__ = function(){
     throw _b_.TypeError("'float' object is not subscriptable")
 }
 
-$FloatDict.__format__ = function(self, format_spec) {
-    // fix me..  this probably isn't correct..
+function preformat(self, fmt){
+    if(fmt.empty){return _b_.str(self)}
+    if(fmt.type && 'eEfFgGn%'.indexOf(fmt.type)==-1){
+        throw _b_.ValueError("Unknown format code '"+fmt.type+
+            "' for object of type 'float'")
+    }
+    if(isNaN(self)){
+        if(fmt.type=='f'||fmt.type=='g'){return 'nan'}
+        else{return 'NAN'}
+    }
+    if(self==Number.POSITIVE_INFINITY){
+        if(fmt.type=='f'||fmt.type=='g'){return 'inf'}
+        else{return 'INF'}
+    }
+    if(fmt.precision===undefined && fmt.type !==undefined){
+        fmt.precision = 6
+    }
+    if(fmt.type=='%'){self *= 100}
+    
+    if(fmt.type=='e'){
+        var res = self.toExponential(fmt.precision),
+            exp = parseInt(res.substr(res.search('e')+1))
+            if(Math.abs(exp)<10){res=res.substr(0,res.length-1)+'0'+
+                res.charAt(res.length-1)}
+        return res        
+    }
+    
+    if(fmt.precision!==undefined){
+        // Use Javascript toPrecision to get the correct result
+        // The argument of toPrecision is the number of digits after .
+        // For format type f, precision is the total number of digits, so we
+        // must add the number of digits before "."
+        var prec = fmt.precision
+        if(prec && 'fF%'.indexOf(fmt.type)>-1){
+            var pos_pt = Math.abs(self).toString().search(/\./)
+            if(pos_pt>-1){prec+=pos_pt}else{prec=Math.abs(self).toString().length}
+        }
+        var res = self.toPrecision(prec),
+            pt_pos=res.indexOf('.')
+        if(fmt.type!==undefined && 
+            (fmt.type=='%' || fmt.type.toLowerCase()=='f')){
+            if(pt_pos==-1){res += '.'+'0'.repeat(fmt.precision)}
+            else{
+                missing = fmt.precision-res.length+pt_pos+1
+                if(missing>0)res += '0'.repeat(missing)
+            }
+        }else{
+            var res1 = self.toExponential(fmt.precision-1),
+                exp = parseInt(res1.substr(res1.search('e')+1))
+            if(exp<-4 || exp>=fmt.precision-1){
+                res = res1
+                if(Math.abs(exp)<10){res=res.substr(0,res.length-1)+'0'+
+                    res.charAt(res.length-1)}
+            }
+        }
+    }else{var res = _b_.str(self)}
 
-    if (format_spec == '') format_spec='f'
-    if (format_spec == '.4') format_spec='.4G'
-    return _b_.str.$dict.__mod__('%'+format_spec, self)
+    if(fmt.type===undefined|| 'gGn'.indexOf(fmt.type)!=-1){
+        // remove trailing 0
+        while(res.charAt(res.length-1)=='0'){res=res.substr(0,res.length-1)}
+        if(res.charAt(res.length-1)=='.'){
+            if(fmt.type===undefined){res += '0'}
+            else{res = res.substr(0,res.length-1)}
+        }
+    }
+    if(fmt.sign!==undefined){
+        if((fmt.sign==' ' || fmt.sign=='+') && self>0){res=fmt.sign+res}
+    }
+    if(fmt.type=='%'){res+='%'}
+    
+    return res
+}
+
+$FloatDict.__format__ = function(self, format_spec) {
+    var fmt = new $B.parse_format_spec(format_spec)
+    fmt.align = fmt.align || '>'
+    var raw = preformat(self, fmt).split('.'),
+        _int = raw[0]
+    if(fmt.comma){
+        var len = _int.length, nb = Math.ceil(_int.length/3), chunks = []
+        for(var i=0;i<nb;i++){
+            chunks.push(_int.substring(len-3*i-3, len-3*i))
+        }
+        chunks.reverse()
+        raw[0] = chunks.join(',')
+    }
+    return $B.format_width(raw.join('.'), fmt)
 }
 
 $FloatDict.__hash__ = function(self) {
@@ -261,6 +342,7 @@ $FloatDict.is_integer = function(self) {return _b_.int(self) == self}
 
 $FloatDict.__mod__ = function(self,other) {
     // can't use Javascript % because it works differently for negative numbers
+    if(other==0){throw ZeroDivisionError('float modulo')}
     if(isinstance(other,_b_.int)) return new Number((self%other+other)%other)
     
     if(isinstance(other,float)){
@@ -278,7 +360,12 @@ $FloatDict.__mod__ = function(self,other) {
 $FloatDict.__mro__ = [$FloatDict,$ObjectDict]
 
 $FloatDict.__mul__ = function(self,other){
-    if(isinstance(other,_b_.int)) return new Number(self*other)
+    if(isinstance(other,_b_.int)){
+        if(other.__class__==$B.LongInt.$dict){
+            return new Number(self*parseFloat(other.value))
+        }
+        return new Number(self*other)
+    }
     if(isinstance(other,float)) return new Number(self*other)
     if(isinstance(other,_b_.bool)){ 
       var bool_value=0; 
@@ -315,6 +402,19 @@ $FloatDict.__repr__ = $FloatDict.__str__ = function(self){
     var res = self.valueOf()+'' // coerce to string
     if(res.indexOf('.')==-1) res+='.0'
     return _b_.str(res)
+}
+
+$FloatDict.__setattr__ = function(self,attr,value){
+    if(self.constructor===Number){
+        if($FloatDict[attr]===undefined){
+            throw _b_.AttributeError("'float' object has no attribute '"+attr+"'")
+        }else{
+            throw _b_.AttributeError("'float' object attribute '"+attr+"' is read-only")
+        }
+    }
+    // subclasses of float can have attributes set
+    self[attr] = value
+    return $N
 }
 
 $FloatDict.__truediv__ = function(self,other){
@@ -362,7 +462,10 @@ for(var $op in $ops){
 
 // comparison methods
 var $comp_func = function(self,other){
-    if(isinstance(other,_b_.int)) return self > other.valueOf()
+    if(isinstance(other,_b_.int)){
+        if(other.__class__===$B.LongInt.$dict){return self > parseInt(other.value)}
+        return self > other.valueOf()
+    }
     if(isinstance(other,float)) return self > other
     throw _b_.TypeError(
         "unorderable types: "+self.__class__.__name__+'() > '+$B.get_class(other).__name__+"()")
@@ -433,15 +536,15 @@ var float = function (value){
          case 'inf':
          case '+infinity':
          case 'infinity':
-           return $FloatClass(Infinity)
+           return Number.POSITIVE_INFINITY
          case '-inf':
          case '-infinity':
-           return $FloatClass(-Infinity)
+           return Number.NEGATIVE_INFINTY
          case '+nan':
          case 'nan':
-           return $FloatClass(Number.NaN)
+           return Number.NaN
          case '-nan':
-           return $FloatClass(-Number.NaN)
+           return -Number.NaN
          case '':
            throw _b_.ValueError('count not convert string to float')
          default:

@@ -3,9 +3,6 @@ from _sys import *
 _getframe = Getframe
 from javascript import JSObject
 
-has_local_storage=__BRYTHON__.has_local_storage
-has_session_storage = __BRYTHON__.has_session_storage
-has_json=__BRYTHON__.has_json
 brython_debug_mode = __BRYTHON__.debug
 
 argv = ['__main__']
@@ -51,7 +48,10 @@ def getfilesystemencoding(*args,**kw):
     Return the encoding used to convert Unicode filenames in
     operating system filenames."""
     return 'utf-8'
-    
+
+def getrecursionlimit():
+    return 200
+
 maxsize=2**63-1
 
 maxunicode=1114111

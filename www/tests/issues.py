@@ -1,3 +1,5 @@
+from tester import assertRaises
+
 # issue 5
 assert(isinstance(__debug__,bool))
 
@@ -430,5 +432,107 @@ class Test:
 t = Test()
 t.clicked = lambda x: x+7 #"clicked"
 assert t.clicked(7) == 14
+
+# issue 249
+x = [a.strip() for a in [
+  " foo ",
+  " bar ",
+]]
+assert x == ['foo', 'bar']
+
+# issue 250
+assert 2**3**4 == 2417851639229258349412352
+
+# issue 258
+a = [1, 2, 3]
+b, *c = a
+assert c == [2, 3]
+
+# issue 261 (__slots__)
+class A:
+    __slots__ = 'x',
+
+A.x
+a = A()
+a.x = 9
+assert a.x == 9
+try:
+    a.y = 0
+except AttributeError:
+    pass
+except:
+    raise
+
+# issue 274
+import base64
+b = bytearray(b'<Z\x00N')
+b64 = base64.b64encode( b )
+assert b64 == b'PFoATg=='
+
+import base64
+buf = bytearray(b'EZ\x86\xdd\xabN\x86\xdd\xabNE[\x86\xdd\xabN\x86\xdd\xabN')
+b64 = base64.b64encode( buf )
+assert b64 == b'RVqG3atOht2rTkVbht2rTobdq04='
+
+# issue 279
+x = 0
+if False: x+=2;x+=3
+for n in range(2): x+=1;x+=1
+assert x==4
+
+# issue 280
+for n in range(5):
+    pass
+assert n==4
+
+# issue 294
+assert int.from_bytes(bytes=b'some_bytes',byteorder='big') == 545127616933790290830707
+
+# issue 296
+assert [4,0,4].index(4,1) == 2
+
+#issue 297
+assert type((1,)*2) == tuple
+
+t = 1,2
+try:
+    t[0]=1
+except TypeError:
+    pass
+
+# issue 298
+n = 1
+for n in range(n): pass
+assert n == 0
+
+#issue 301 
+t = 1,2
+assertRaises(TypeError, t.__setitem__, 0, 1)
+
+try:
+    t[0]=1
+except TypeError:
+    pass
+else:
+    raise Exception('should have raised TypeError')
+
+# issue 305
+a = [1, 2, 3]
+assert a.sort() is None
+
+# issue 307
+x = 1
+assertRaises(AttributeError, setattr, x, '__add__', 1)
+assertRaises(AttributeError, setattr, x, 'y', 1)
+
+# issue 310
+assert 4 in range(5)
+assert 4 in range(0, 5, 2)
+assert not 1 in range(0, 5, 2)
+
+assert 1 in range(10, 0, -1)
+assert 10 in range(10, 0, -1)
+assert not 1 in range(10, 0, -2)
+assert not 0 in range(10, 0, -2)
 
 print('passed all tests')

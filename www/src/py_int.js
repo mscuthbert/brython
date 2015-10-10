@@ -2,7 +2,7 @@
 
 eval($B.InjectBuiltins())
 
-var $ObjectDict = _b_.object.$dict
+var $ObjectDict = _b_.object.$dict, $N = _b_.None
 
 function $err(op,other){
     var msg = "unsupported operand type(s) for "+op
@@ -19,14 +19,13 @@ var $IntDict = {__class__:$B.$type,
 }
 
 $IntDict.from_bytes = function() {
-  var $ns=$B.$MakeArgs1("from_bytes", 3, 
-      {x:null, byteorder:null, signed:null}, ['x', 'byteorder', 'signed'],
-      arguments, {signed:False}, 'args', 'kw')
+  var $=$B.args("from_bytes", 3, 
+      {bytes:null, byteorder:null, signed:null}, ['bytes', 'byteorder', 'signed'],
+      arguments, {signed:False}, null, null)
 
-  var x = $ns['x']
-  var byteorder = $ns['byteorder']
-  var signed = $ns['signed'] || _b_.dict.$dict.get($ns['kw'],'signed', False)
-
+  var x = $.bytes,
+      byteorder = $.byteorder,
+      signed = $.signed
   var _bytes, _len
   if (isinstance(x, [_b_.list, _b_.tuple])) {
      _bytes=x
@@ -101,9 +100,52 @@ $IntDict.__eq__ = function(self,other){
     return self.valueOf()===other
 }
 
+function preformat(self, fmt){
+    if(fmt.empty){return _b_.str(self)}
+    if(fmt.type && 'bcdoxXn'.indexOf(fmt.type)==-1){
+        throw _b_.ValueError("Unknown format code '"+fmt.type+
+            "' for object of type 'int'")
+    }
+    
+    switch(fmt.type){
+        case undefined:
+        case 'd':
+            return self.toString()
+        case 'b':
+            return (fmt.alternate ? '0b' : '') + self.toString(2)
+        case 'c':
+            return _b_.chr(self)
+        case 'o':
+            return (fmt.alternate ? '0o' : '') + self.toString(8)
+        case 'x':
+            return (fmt.alternate ? '0x' : '') + self.toString(16)
+        case 'X':
+            return (fmt.alternate ? '0X' : '') + self.toString(16).toUpperCase()
+        case 'n':
+            return self // fix me
+    }
+        
+    return res
+}
+
+
 $IntDict.__format__ = function(self,format_spec){
-    if (format_spec == '') format_spec='d'
-    return _b_.str.$dict.__mod__('%'+format_spec, self)
+    var fmt = new $B.parse_format_spec(format_spec)
+    if(fmt.type && 'eEfFgG%'.indexOf(fmt.type)!=-1){
+        // Call __format__ on float(self)
+        return _b_.float.$dict.__format__(self, format_spec)        
+    }
+    fmt.align = fmt.align || '>'
+    var res = preformat(self, fmt)
+    if(fmt.comma){
+        var len = res.length, nb = Math.ceil(res.length/3), chunks = []
+        for(var i=0;i<nb;i++){
+            chunks.push(res.substring(len-3*i-3, len-3*i))
+        }
+        chunks.reverse()
+        res = chunks.join(',')
+    }
+    return $B.format_width(res, fmt)
 }
 
 //$IntDict.__float__ = function(self){return float(self)}
@@ -143,6 +185,7 @@ $IntDict.__init__ = function(self,value){
     if(value===undefined){value=0}
     self.toString = function(){return value}
     //self.valueOf = function(){return value}
+    return $N
 }
 
 $IntDict.__int__ = function(self){return self}
@@ -162,12 +205,11 @@ $IntDict.__lshift__ = function(self,other){
 $IntDict.__mod__ = function(self,other) {
     // can't use Javascript % because it works differently for negative numbers
     if(isinstance(other,_b_.tuple) && other.length==1) other=other[0]
-    if(isinstance(other,int)) return (self%other+other)%other
-    if(isinstance(other,_b_.float)) return ((self%other)+other)%other
-    if(isinstance(other,bool)){ 
-         var bool_value=0; 
-         if (other.valueOf()) bool_value=1;
-         return (self%bool_value+bool_value)%bool_value
+    if(isinstance(other,[int, _b_.float, bool])){
+        if(other===false){other=0}else if(other===true){other=1}
+        if(other==0){throw _b_.ZeroDivisionError(
+            "integer division or modulo by zero")}
+        return (self%other+other)%other
     }
     if(hasattr(other,'__rmod__')) return getattr(other,'__rmod__')(self)
     $err('%',other)
@@ -260,11 +302,16 @@ $IntDict.__rshift__ = function(self,other){
 }
 
 $IntDict.__setattr__ = function(self,attr,value){
-    if(self.__class__===$IntDict){
-        throw _b_.AttributeError("'int' object has no attribute "+attr+"'")
+    if(typeof self=="number"){
+        if($IntDict[attr]===undefined){
+            throw _b_.AttributeError("'int' object has no attribute '"+attr+"'")
+        }else{
+            throw _b_.AttributeError("'int' object attribute '"+attr+"' is read-only")
+        }
     }
     // subclasses of int can have attributes set
     self[attr] = value
+    return $N
 }
 
 $IntDict.__str__ = $IntDict.__repr__
@@ -305,10 +352,14 @@ $B.min_int32= - $B.max_int32
 // code for operands & | ^
 var $op_func = function(self,other){
     if(isinstance(other,int)) {
-       if (self > $B.max_int32 || self < $B.min_int32 || other > $B.max_int32 || other < $B.min_int32) {
-          return $B.LongInt.$dict.__sub__($B.LongInt(self), $B.LongInt(other))
-       }
-       return self-other
+        if(other.__class__===$B.LongInt.$dict){
+            return $B.LongInt.$dict.__sub__($B.LongInt(self), $B.LongInt(other))
+        }
+        if (self > $B.max_int32 || self < $B.min_int32 || 
+            other > $B.max_int32 || other < $B.min_int32) {
+            return $B.LongInt.$dict.__sub__($B.LongInt(self), $B.LongInt(other))
+        }
+        return self-other
     }
     if(isinstance(other,_b_.bool)) return self-other
     if(hasattr(other,'__rsub__')) return getattr(other,'__rsub__')(self)
@@ -417,15 +468,16 @@ var int = function(value, base){
         throw TypeError("can't convert complex to int")
     }
 
-    var $ns=$B.$MakeArgs1('int',2,{x:null,base:null},['x','base'],arguments,
+    var $ns=$B.args('int',2,{x:null,base:null},['x','base'],arguments,
         {'base':10},'null','null')
     var value = $ns['x']
     var base = $ns['base']
     
     if(isinstance(value, _b_.float) && base===10){
-        var res = parseInt(value)
-        if(res<$B.min_int || res>$B.max_int){return $B.LongInt(res+'')}
-        else{return res}
+        if(value<$B.min_int || value>$B.max_int){
+            return $B.LongInt.$dict.$from_float(value)
+        }
+        else{return value>0 ? Math.floor(value) : Math.ceil(value)}
     }
 
     if (!(base >=2 && base <= 36)) {

@@ -28,6 +28,9 @@ $B.path = [$path+'Lib', $path+'libs', $script_dir, $path+'Lib/site-packages']
 // __BRYTHON__.bound[scope.id]
 $B.bound = {}
 
+// Information on the type of a variable by lexical analysis
+$B.type = {}
+
 // for the time being, a flag will be used to know if we should 
 // enable async functionality.
 $B.async_enabled=false
@@ -46,7 +49,7 @@ $B.vars = {}
 
 // Maps block names to a dictionary indexed by names defined as global
 // inside the block
-$B.globals = {}
+$B._globals = {}
 
 // Frames stack
 $B.frames_stack = []
@@ -78,6 +81,22 @@ $B.charset = document.characterSet || document.inputEncoding || "utf-8"
 $B.max_int = Math.pow(2,53)-1
 $B.min_int = -$B.max_int
 
+// Used to compute the hash value of some objects (see 
+// py_builtin_functions.js)
+$B.$py_next_hash = -Math.pow(2,53)
+
+// $py_UUID guarantees a unique id.  Do not use this variable 
+// directly, use the $B.UUID function defined in py_utils.js
+$B.$py_UUID=0
+
+// Magic name used in lambdas
+$B.lambda_magic = Math.random().toString(36).substr(2,8)
+
+// Callback functions indexed by their name
+// Used to print a traceback if an exception is raised when the function
+// is triggered by a DOM event
+$B.callbacks = {}
+
 var has_storage = typeof(Storage)!=="undefined"
 if(has_storage){
     $B.has_local_storage = false
@@ -100,19 +119,9 @@ if(has_storage){
     $B.has_session_storage = false
 }
 
-var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.msIndexedDB
-$B.has_indexedDB = indexedDB !== undefined
-if($B.has_indexedDB){
-    $B.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction
-    $B.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange
-    
-    $B.indexedDB = function(){return $B.JSObject(indexedDB)}
+$B.globals = function(){
+    // Can be used in Javascript console to inspect global namespace
+    return $B.frames_stack[$B.frames_stack.length-1][3]
 }
-
-$B.re = function(pattern,flags){return $B.JSObject(new RegExp(pattern,flags))}
-$B.has_json = typeof(JSON)!=="undefined"
-
-$B.has_websocket = window.WebSocket!==undefined
-
 
 })(__BRYTHON__)

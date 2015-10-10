@@ -1,5 +1,4 @@
-[![Stories in Ready](https://badge.waffle.io/brython-dev/brython.svg?label=ready&title=Ready)](http://waffle.io/brython-dev/brython)    [![Join the chat at https://gitter.im/brython-dev/brython](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/brython-dev/brython?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Chat with Brython Users and Developers")
-
+[![Stories in Ready](https://badge.waffle.io/brython-dev/brython.svg?label=ready&title=Ready)](http://waffle.io/brython-dev/brython)
 
 brython
 =======
@@ -72,6 +71,25 @@ create a new folder "app" at the same level as "site" and create a file "index.h
 with the HTML example above.
 Point the browser to [http://localhost:8000/app](http://localhost:8000/app) to see the result.
 
+Another option, with no installation, is to use the distribution available
+online through [rawgit](https://rawgit.com/). You can either use the latest stable
+release, for instance for release 3.2.2 :
+
+```xml
+<script type="text/javascript"
+    src="https://cdn.rawgit.com/brython-dev/brython/3.2.2/www/src/brython.js">
+</script>
+```
+
+or the current, unstable development version :
+
+
+```xml
+<script type="text/javascript" 
+    src="https://cdn.rawgit.com/brython-dev/brython/master/www/src/brython.js">
+</script>
+```
+
 Test Brython online
 ===================
 If you want to test Brython online you can visit the following:
@@ -91,24 +109,26 @@ Documentation
 =============
 Documentation is available on the [official site](http://www.brython.info "Brython Homepage").
 You can read the docs in [English](http://brython.info/doc/en/index.html),
-[French](http://brython.info/doc/fr/index.html),
-[Spanish](http://brython.info/doc/es/index.html) and
-[Portuguese](http://brython.info/doc/pt/index.html).
+[French](http://brython.info/doc/fr/index.html) and
+[Spanish](http://brython.info/doc/es/index.html).
+
 The most updated docs usually are the English and French versions so if you 
 want to be up-to-date, please, use these versions.
 
+Curious about [how Brython works](https://github.com/brython-dev/brython/wiki/How%20Brython%20works) ?
 
-Questions, feedback, issues, new features...
-=============================================
-There is a main [mail list in English](https://groups.google.com/forum/?fromgroups=#!forum/brython "Brython Main Mailing List").
+Community (questions, feedback, issues, new features, ...)
+==========================================================
+There is a main [mailing list in English](https://groups.google.com/forum/?fromgroups=#!forum/brython "Brython Main Mailing List").
 Also, you can find [mail list in other languages](http://brython.info/groups.html "Brython Mailing Lists")
 but the activity is very low and it is recommended to use the main one in English.
 
 If you find a bug/issue or do you want to see a new feature in Brython, please,
 [open a new issue](https://github.com/brython-dev/brython/issues "Brython GitHub Issues").
 
-Theres a [Brython Community on Google Plus](https://plus.google.com/communities/114694456237115550531).
+There's a [Brython Community on Google Plus](https://plus.google.com/communities/114694456237115550531).
 
+IRC: #brython on [freenode](https://webchat.freenode.net/)
 
 Agile Development
 =================

@@ -72,17 +72,9 @@ var jsobj2pyobj=$B.jsobj2pyobj=function(jsobj) {
       case true:
       case false:
         return jsobj
-      case null:
-        return _b_.None
     }
 
-    if (typeof jsobj === 'object') {
-       if ('length' in jsobj) return _b_.list(jsobj)
-
-       var d=_b_.dict()
-       for (var $a in jsobj) _b_.dict.$dict.__setitem__(d,$a, jsobj[$a])
-       return d
-    }
+    if (Array.isArray(jsobj)) return _b_.list(jsobj)
 
     if (typeof jsobj === 'number') {
        if (jsobj.toString().indexOf('.') == -1) return _b_.int(jsobj)
@@ -141,6 +133,22 @@ var pyobj2jsobj=$B.pyobj2jsobj=function(pyobj){
         // Python floats are converted to the underlying value
         return pyobj.valueOf()
 
+    }else if(klass===$B.$FunctionDict){
+        // Transform arguments
+        return function(){
+            try{
+                var args = []
+                for(var i=0;i<arguments.length;i++){
+                    args.push(jsobj2pyobj(arguments[i]))
+                }
+                return pyobj.apply(null, args)
+            }catch(err){
+                console.log(_b_.getattr(err,'info'))
+                console.log(err.__name__+':', err.args[0])
+                throw err
+            }
+        }
+
     }else{
         // other types are left unchanged
 
@@ -148,7 +156,6 @@ var pyobj2jsobj=$B.pyobj2jsobj=function(pyobj){
 
     }
 }
-
 
 var $JSObjectDict = {
     __class__:$B.$type,
@@ -160,15 +167,20 @@ $JSObjectDict.__bool__ = function(self){
     return (new Boolean(self.js)).valueOf()
 }
 
-$JSObjectDict.__getattribute__ = function(obj,attr){
+$JSObjectDict.__dir__ = function(self){
+    return Object.keys(self.js)
+}
+
+$JSObjectDict.__getattribute__ = function(self,attr){
     if(attr.substr(0,2)=='$$') attr=attr.substr(2)
-    if(obj.js===null) return $ObjectDict.__getattribute__(None,attr)
+    if(self.js===null) return $ObjectDict.__getattribute__(None,attr)
     if(attr==='__class__') return $JSObjectDict
-    if(attr=="bind" && obj.js[attr]===undefined &&
-        obj.js['addEventListener']!==undefined){attr='addEventListener'}
-    var js_attr = obj.js[attr]
-    if(obj.js_func && obj.js_func[attr]!==undefined){
-        js_attr = obj.js_func[attr]
+    if(self.__class__===$JSObjectDict && attr=="$bind" && 
+        self.js[attr]===undefined &&
+        self.js['addEventListener']!==undefined){attr='addEventListener'}
+    var js_attr = self.js[attr]
+    if(self.js_func && self.js_func[attr]!==undefined){
+        js_attr = self.js_func[attr]
     }
 
     if(js_attr !== undefined){
@@ -194,23 +206,23 @@ $JSObjectDict.__getattribute__ = function(obj,attr){
                     }
                 }
                 // IE workaround
-                if(attr === 'replace' && obj.js === location) {
+                if(attr === 'replace' && self.js === location) {
                     location.replace(args[0])
                     return
                 }
-                var res = js_attr.apply(obj.js,args)
-                if(typeof res == 'object') return JSObject(res)
-                if(res===undefined) return None
-                return $B.$JS2Py(res)
+                var result = js_attr.apply(self.js,args)
+                if(typeof result == 'object') return JSObject(result)
+                if(result===undefined) return None
+                return $B.$JS2Py(result)
             }
             res.__repr__ = function(){return '<function '+attr+'>'}
             res.__str__ = function(){return '<function '+attr+'>'}
             return {__class__:$JSObjectDict,js:res,js_func:js_attr}
         }else{
-            if(Array.isArray(obj.js[attr])){return obj.js[attr]}
-            return $B.$JS2Py(obj.js[attr])
+            if(Array.isArray(self.js[attr])){return self.js[attr]}
+            return $B.$JS2Py(self.js[attr])
         }
-    }else if(obj.js===window && attr==='$$location'){
+    }else if(self.js===window && attr==='$$location'){
         // special lookup because of Firefox bug 
         // https://bugzilla.mozilla.org/show_bug.cgi?id=814622
         return $Location()
@@ -218,7 +230,7 @@ $JSObjectDict.__getattribute__ = function(obj,attr){
     
     var res
     // search in classes hierarchy, following method resolution order
-    var mro = [$JSObjectDict,$ObjectDict]
+    var mro = self.__class__.__mro__
     for(var i=0, _len_i = mro.length; i < _len_i;i++){
         var v=mro[i][attr]
         if(v!==undefined){
@@ -229,9 +241,9 @@ $JSObjectDict.__getattribute__ = function(obj,attr){
     if(res!==undefined){
         if(typeof res==='function'){
             // res is the function in one of parent classes
-            // return a function that takes obj as first argument
+            // return a function that takes self as first argument
             return function(){
-                var args = [obj],arg
+                var args = [self],arg
                 for(var i=0, _len_i = arguments.length; i < _len_i;i++){
                     arg = arguments[i]
                     if(arg && (arg.__class__===$JSObjectDict || arg.__class__===$JSConstructorDict)){
@@ -240,34 +252,39 @@ $JSObjectDict.__getattribute__ = function(obj,attr){
                         args.push(arg)
                     }
                 }
-                return res.apply(obj,args)
+                return res.apply(self,args)
             }
         }
         return $B.$JS2Py(res)
     }else{
         // XXX search __getattr__
-        throw _b_.AttributeError("no attribute "+attr+' for '+this)
+        throw _b_.AttributeError("no attribute "+attr+' for '+self.js)
     }
 }
 
 $JSObjectDict.__getitem__ = function(self,rank){
     try{return getattr(self.js,'__getitem__')(rank)}
     catch(err){
-        if(self.js[rank]!==undefined) return JSObject(self.js[rank])
-        throw _b_.AttributeError(self+' has no attribute __getitem__')
+        if(self.js[rank]!==undefined){return JSObject(self.js[rank])}
+        throw _b_.KeyError(rank)
     }
 }
 
 var $JSObject_iterator = $B.$iterator_class('JS object iterator')
 $JSObjectDict.__iter__ = function(self){
+    if(window.Symbol && self.js[Symbol.iterator]!==undefined){
+        // Javascript objects that support the iterable protocol, such as Map
+        var items = []
+        for(var item in self.js){ if( self.js.hasOwnProperty( item ) ) { items.push(jsobj2pyobj(item))} }
+        return $B.$iterator(items, $JSObject_iterator)
+    }
     return $B.$iterator(self.js,$JSObject_iterator)
 }
 
 $JSObjectDict.__len__ = function(self){
     try{return getattr(self.js,'__len__')()}
     catch(err){
-        console.log('err in JSObject.__len__ : '+err)
-        throw _b_.AttributeError(this+' has no attribute __len__')
+        throw _b_.AttributeError(self.js+' has no attribute __len__')
     }
 }
 
@@ -277,7 +294,24 @@ $JSObjectDict.__repr__ = function(self){return "<JSObject wraps "+self.js+">"}
 
 $JSObjectDict.__setattr__ = function(self,attr,value){
     if(isinstance(value,JSObject)){self.js[attr]=value.js}
-    else{self.js[attr]=value}
+    else{
+        self.js[attr]=value
+        if(typeof value=='function'){
+            self.js[attr] = function(){
+                var args = []
+                for(var i=0, len=arguments.length;i<len;i++){
+                    args.push(jsobj2pyobj(arguments[i]))
+                }
+                try{return value.apply(null, args)}
+                catch(err){
+                    err = $B.exception(err)
+                    var info = _b_.getattr(err,'info')
+                    throw Error(info+'\n'+err.__class__.__name__+
+                        ': '+_b_.repr(err.args[0]))
+                }
+            }
+        }
+    }
 }
 
 $JSObjectDict.__setitem__ = $JSObjectDict.__setattr__
@@ -285,6 +319,10 @@ $JSObjectDict.__setitem__ = $JSObjectDict.__setattr__
 $JSObjectDict.__str__ = $JSObjectDict.__repr__
 
 var no_dict = {'string':true,'function':true,'number':true,'boolean':true}
+
+$JSObjectDict.bind = function(self, evt, func){
+    return $JSObjectDict.__getattribute__(self, 'addEventListener').js(evt, func)
+}
 
 $JSObjectDict.to_dict = function(self){
     // Returns a Python dictionary based on the underlying Javascript object
@@ -301,10 +339,10 @@ $JSObjectDict.to_dict = function(self){
 }
 
 function JSObject(obj){
+    if (obj === null) {return _b_.None}
     // If obj is a function, calling it with JSObject implies that it is
     // a function defined in Javascript. It must be wrapped in a JSObject
     // so that when called, the arguments are transformed into JS values
-    if (obj === null) {return _b_.None}
     if(typeof obj=='function'){return {__class__:$JSObjectDict,js:obj}}
     var klass = $B.get_class(obj)
     if(klass===_b_.list.$dict){

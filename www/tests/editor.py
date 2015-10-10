@@ -1,7 +1,7 @@
 import sys
 import time
 import traceback
-import dis
+import javascript
 
 from browser import document as doc, window, alert
 
@@ -32,7 +32,7 @@ except:
     editor.setValue = set_value
     has_ace = False
 
-if sys.has_local_storage:
+if hasattr(window, 'localStorage'):
     from browser.local_storage import storage
 else:
     storage = None
@@ -83,7 +83,7 @@ def load_script(evt):
     editor.setValue(open(_name).read())
 
 # run a script, in global namespace if in_globals is True
-def run(in_globals=False):
+def run(*args):
     global output
     doc["console"].value = ''
     src = editor.getValue()
@@ -92,11 +92,8 @@ def run(in_globals=False):
 
     t0 = time.perf_counter()
     try:
-        if(in_globals):
-            exec(src)
-        else:
-            ns = {}
-            exec(src, ns)
+        ns = {'__name__':'__main__'}
+        exec(src, ns)
         state = 1
     except Exception as exc:
         traceback.print_exc(file=sys.stderr)
@@ -108,7 +105,7 @@ def run(in_globals=False):
 
 def show_js(ev):
     src = editor.getValue()
-    doc["console"].value = dis.dis(src)
+    doc["console"].value = javascript.py2js(src, '__main__')
 
 if has_ace:
     reset_src()

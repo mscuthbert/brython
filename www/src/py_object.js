@@ -33,11 +33,23 @@ var $ObjectDict = {
     $native:true
 }
 
-// function used to generate the methods that return 'unorderable types'
+// Function for comparison operators
+// In a<b, if b defines __gt__, use b.__gt__(a)
+var reverse_func = {'__lt__':'__gt__',
+    '__gt__':'__lt__',
+    '__le__': '__ge__',
+    '__ge__': '__le__'
+}
 var $ObjectNI = function(name,op){
-    return function(other){
-        throw _b_.TypeError('unorderable types: object() '+op+
-            ' '+ _b_.str($B.get_class(other).__name__)+'()')
+    return function(self, other){
+        var klass = $B.get_class(other), 
+            other_comp = _b_.getattr(klass, reverse_func[name])
+        if(other_comp.__func__===$ObjectDict[reverse_func[name]]){
+            throw _b_.TypeError('unorderable types: object() '+op+
+                ' '+ _b_.str($B.get_class(other).__name__)+'()')
+        }else{
+            return other_comp(other, self)
+        }
     }
 }
 
@@ -51,7 +63,7 @@ var opnames = ['add','sub','mul','truediv','floordiv','mod','pow',
     'lshift','rshift','and','xor','or']
 var opsigns = ['+','-','*','/','//','%','**','<<','>>','&','^', '|']
 
-$ObjectDict.__delattr__ = function(self,attr){delete self[attr]}
+$ObjectDict.__delattr__ = function(self,attr){delete self[attr]; return _b_.None}
 
 $ObjectDict.__dir__ = function(self) {
     var objects = [self], pos=1
@@ -73,6 +85,7 @@ $ObjectDict.__dir__ = function(self) {
                 // '0', '1' are in attributes of string 'ab'
                 continue
             }
+            if(attr=='__mro__'){continue}
             res[pos++]=attr
         }
     }
@@ -262,7 +275,7 @@ $ObjectDict.__hash__ = function (self) {
     return $B.$py_next_hash;
 }
 
-$ObjectDict.__init__ = function(){}
+$ObjectDict.__init__ = function(){return _b_.None}
 
 $ObjectDict.__le__ = $ObjectNI('__le__','<=')
 
@@ -306,6 +319,7 @@ $ObjectDict.__setattr__ = function(self,attr,val){
         }
     }
     self[attr] = val
+    return _b_.None
 }
 $ObjectDict.__setattr__.__str__ = function(){return 'method object.setattr'}
 
@@ -320,6 +334,31 @@ object.$dict = $ObjectDict
 // object.__class__ = $factory : this is done in py_types
 $ObjectDict.$factory = object
 object.__repr__ = object.__str__ = function(){return "<class 'object'>"}
+
+$B.make_class = function(class_obj){
+    // class_obj has at least an attribute "name", and possibly an attribute
+    // init
+
+    function A(){
+        var res = {__class__:A.$dict}
+        if(class_obj.init){
+            class_obj.init.apply(null, 
+                [res].concat(Array.prototype.slice.call(arguments)))
+        }
+        return res
+    }
+
+    A.__class__ = $B.$factory
+
+    A.$dict = {
+        $factory: A,
+        __class__: $B.type,
+        __name__: class_obj.name
+    }
+    A.$dict.__mro__ = [A.$dict, object.$dict]
+
+    return A
+}
 
 return object
 
